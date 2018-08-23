@@ -374,3 +374,12 @@ pub const PERF_RECORD_LOST_SAMPLES: u32 = 13;
 pub const PERF_RECORD_SWITCH: u32 = 14;
 pub const PERF_RECORD_SWITCH_CPU_WIDE: u32 = 15;
 pub const PERF_RECORD_NAMESPACES: u32 = 16;
+
+pub const PERF_CONTEXT_HV: u64 = -32i64 as u64;
+pub const PERF_CONTEXT_KERNEL: u64 = -128i64 as u64;
+pub const PERF_CONTEXT_USER: u64 = -512i64 as u64;
+
+pub const PERF_CONTEXT_GUEST: u64 = -2048i64 as u64;
+pub const PERF_CONTEXT_GUEST_KERNEL: u64 = -2176i64 as u64;
+pub const PERF_CONTEXT_GUEST_USER: u64 = -2560i64 as u64;
+pub const PERF_CONTEXT_MAX: u64 = -4095i64 as u64;

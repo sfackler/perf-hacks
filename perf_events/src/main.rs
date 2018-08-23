@@ -97,6 +97,10 @@ fn main() {
                     let ip = ptr::read_volatile(entry as *mut u64);
                     entry = entry.add(mem::size_of::<u64>());
 
+                    if ip > PERF_CONTEXT_MAX {
+                        continue;
+                    }
+
                     println!("{:#x}", ip);
                     backtrace::resolve(ip as *mut _, |symbol| {
                         println!("   {:?} {:?} {:?}", symbol.name(), symbol.filename(), symbol.lineno());
