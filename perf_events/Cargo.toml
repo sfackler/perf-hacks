@@ -1,0 +1,10 @@
+[package]
+name = "perf_events"
+version = "0.1.0"
+authors = ["Steven Fackler <sfackler@gmail.com>"]
+
+[dependencies]
+perf_events-sys = { path = "../perf_events-sys" }
+libc = "0.2"
+memmap = "0.6"
+backtrace = "0.3"

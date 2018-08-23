@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "perf_events",
+    "perf_events-sys",
+]
+
+[profile.release]
+debug = true
