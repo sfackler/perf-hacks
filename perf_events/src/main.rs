@@ -1,14 +1,16 @@
+extern crate backtrace;
 extern crate libc;
 extern crate perf_events_sys;
-extern crate backtrace;
 
 use perf_events_sys::*;
-use std::arch::x86_64::{_mm_lfence, _mm_mfence};
 use std::io;
 use std::mem;
 use std::ptr;
+use std::slice;
 use std::sync::mpsc;
 use std::thread;
+
+use buffer::EventMmap;
 
 mod buffer;
 
@@ -18,6 +20,7 @@ fn main() {
         thread::spawn(move || {
             let tid = libc::syscall(186);
             tx.send(tid).unwrap();
+            println!("{:?}", backtrace::Backtrace::new());
             loop {
                 std::sync::atomic::spin_loop_hint();
                 std::sync::atomic::spin_loop_hint();
@@ -43,18 +46,7 @@ fn main() {
             panic!("{}", io::Error::last_os_error());
         }
 
-        let ptr = libc::mmap(
-            ptr::null_mut(),
-            4096 + 4096 * 32,
-            libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_SHARED,
-            fd,
-            0,
-        );
-        if ptr == libc::MAP_FAILED {
-            panic!("{}", io::Error::last_os_error());
-        }
-        let ptr = ptr as *mut libc::c_char;
+        let mut mmap = EventMmap::new(fd, 32).unwrap();
 
         let mut readfds = mem::uninitialized();
         libc::FD_ZERO(&mut readfds);
@@ -72,40 +64,34 @@ fn main() {
         }
         assert!(libc::FD_ISSET(fd, &mut readfds));
 
-        let data_head_ptr = ptr.add(1024) as *const u64;
-        let data_tail_ptr = data_head_ptr.add(1);
+        let mut buf = vec![];
+        let mut events = mmap.iter(&mut buf);
 
-        let data_head = ptr::read_volatile(data_head_ptr);
-        _mm_lfence();
+        while let Some(event) = events.next() {
+            println!("type {}", event.type_);
 
-        let mut start = ptr.add(4096);
-        let end = start.add(data_head as usize);
+            if event.type_ == PERF_RECORD_SAMPLE {
+                assert!(event.data.as_ptr() as usize % mem::align_of::<u64>() == 0);
+                let data = slice::from_raw_parts(
+                    event.data.as_ptr() as *const u64,
+                    event.data.len() / mem::size_of::<u64>(),
+                );
+                assert_eq!(data[0], data.len() as u64 - 1);
 
-        while start < end {
-            let mut entry = start;
-            let header = ptr::read_volatile(entry as *mut perf_event_header);
-            entry = entry.add(mem::size_of::<perf_event_header>());
-
-            start = start.add(header.size as usize);
-
-            println!("type {} size {}", header.type_, header.size);
-
-            if header.type_ == PERF_RECORD_SAMPLE {
-                let nr = ptr::read_volatile(entry as *mut u64);
-                entry = entry.add(mem::size_of::<u64>());
-                assert_eq!(4 + 2 + 2 + 8 + 8 * (nr as u16), header.size);
-
-                for _ in 0..nr {
-                    let ip = ptr::read_volatile(entry as *mut u64);
-                    entry = entry.add(mem::size_of::<u64>());
-
+                for &ip in &data[1..] {
                     if ip > PERF_CONTEXT_MAX {
                         continue;
                     }
 
+                    let ip = ip - 1;
                     println!("{:#x}", ip);
                     backtrace::resolve(ip as *mut _, |symbol| {
-                        println!("   {:?} {:?} {:?}", symbol.name(), symbol.filename(), symbol.lineno());
+                        println!(
+                            "   {:?} {:?} {:?}",
+                            symbol.name(),
+                            symbol.filename(),
+                            symbol.lineno()
+                        );
                     });
                 }
             }
