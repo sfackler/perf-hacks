@@ -10,6 +10,8 @@ use std::ptr;
 use std::sync::mpsc;
 use std::thread;
 
+mod buffer;
+
 fn main() {
     unsafe {
         let (tx, rx) = mpsc::channel();
